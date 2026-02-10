@@ -7,14 +7,11 @@
 # 2. 支持国内/海外资源选择
 # 3. 可设置流量限制和线程数
 # 4. 实时统计显示
-# 5. 支持每日定时任务配置与执行
+# 5. 取消设置面板和开机自启功能
 # ==============================================
 
 #声明版本号
-VERSION="v0.2"
-SCRIPT_PATH=$(readlink -f "$0")
-SCHEDULE_CONF="/etc/VPSShua/schedule.conf"
-CRON_TAG="# VPSSHUA_DAILY_JOB"
+VERSION="v0.1"
 
 # 定义颜色代码
 RED="\033[31m"
@@ -55,132 +52,6 @@ check_dependencies() {
         echo "Alpine:        sudo apk add ${missing[*]}"
         exit 1
     fi
-}
-
-check_cron_dependency() {
-    if ! command -v crontab >/dev/null 2>&1; then
-        echo "未找到 crontab 命令，请先安装 cron/cronie 后再配置定时任务。"
-        return 1
-    fi
-    return 0
-}
-
-save_schedule_config() {
-    local dir
-    dir=$(dirname "$SCHEDULE_CONF")
-    mkdir -p "$dir" || return 1
-
-    {
-        echo "LIMIT_GB=$LIMIT_GB"
-        echo "THREADS=$THREADS"
-        echo "RESOURCE_TYPE=$RESOURCE_TYPE"
-        printf 'SELECTED_URLS=(\n'
-        for url in "${SELECTED_URLS[@]}"; do
-            printf '  "%s"\n' "$url"
-        done
-        printf ')\n'
-    } > "$SCHEDULE_CONF"
-}
-
-load_schedule_config() {
-    if [ ! -f "$SCHEDULE_CONF" ]; then
-        echo "未找到定时任务配置: $SCHEDULE_CONF"
-        return 1
-    fi
-
-    # shellcheck disable=SC1090
-    source "$SCHEDULE_CONF"
-
-    if [ -z "$LIMIT_GB" ] || [ -z "$THREADS" ] || [ ${#SELECTED_URLS[@]} -eq 0 ]; then
-        echo "定时配置不完整，请重新配置。"
-        return 1
-    fi
-
-    return 0
-}
-
-install_daily_cron() {
-    local hour="$1"
-    local minute="$2"
-    local cron_line
-    local tmp_cron
-
-    cron_line="$minute $hour * * * $SCRIPT_PATH --run-scheduled >/tmp/vpsshua-cron.log 2>&1 $CRON_TAG"
-
-    tmp_cron=$(mktemp)
-    crontab -l 2>/dev/null | sed "/$CRON_TAG/d" > "$tmp_cron"
-    echo "$cron_line" >> "$tmp_cron"
-    crontab "$tmp_cron"
-    rm -f "$tmp_cron"
-}
-
-configure_daily_schedule() {
-    check_cron_dependency || return 1
-
-    if [ ${#SELECTED_URLS[@]} -eq 0 ]; then
-        echo "请先在主菜单选择资源后再配置定时任务。"
-        return 1
-    fi
-
-    local run_time hour minute
-    read -p "请输入每日执行时间 (HH:MM，24小时制): " run_time
-
-    if [[ ! "$run_time" =~ ^([01][0-9]|2[0-3]):([0-5][0-9])$ ]]; then
-        echo "时间格式错误，请使用 HH:MM，例如 03:30"
-        return 1
-    fi
-
-    hour=${run_time%:*}
-    minute=${run_time#*:}
-
-    save_schedule_config || {
-        echo "写入配置失败: $SCHEDULE_CONF"
-        return 1
-    }
-
-    install_daily_cron "$hour" "$minute" || {
-        echo "写入 crontab 失败。"
-        return 1
-    }
-
-    echo "每日定时任务已设置：$run_time"
-    echo "定时配置文件：$SCHEDULE_CONF"
-    echo "日志输出：/tmp/vpsshua-cron.log"
-}
-
-remove_daily_schedule() {
-    check_cron_dependency || return 1
-
-    local tmp_cron
-    tmp_cron=$(mktemp)
-    crontab -l 2>/dev/null | sed "/$CRON_TAG/d" > "$tmp_cron"
-    crontab "$tmp_cron"
-    rm -f "$tmp_cron"
-
-    rm -f "$SCHEDULE_CONF"
-    echo "已删除每日定时任务和配置文件。"
-}
-
-show_daily_schedule_status() {
-    check_cron_dependency || return 1
-
-    echo "当前 crontab 中的 VPSShua 定时任务："
-    crontab -l 2>/dev/null | grep "$CRON_TAG" || echo "(未配置)"
-
-    if [ -f "$SCHEDULE_CONF" ]; then
-        echo "配置文件：$SCHEDULE_CONF"
-        sed 's/^/  /' "$SCHEDULE_CONF"
-    else
-        echo "配置文件：未找到"
-    fi
-}
-
-run_scheduled_job() {
-    check_dependencies
-    load_schedule_config || return 1
-
-    echo "[$(date '+%F %T')] 启动定时任务，资源类型: $RESOURCE_TYPE，限制: ${LIMIT_GB}GB，线程: $THREADS"
-    start_download
 }
 
 # 国内资源（完全保持原始名称）
@@ -270,9 +141,6 @@ show_menu() {
     echo "4. 开始运行"
     echo "5. 退出"
     echo "6. 更新 VPSShua"
-    echo "7. 配置每日定时任务"
-    echo "8. 删除每日定时任务"
-    echo "9. 查看定时任务状态"
     echo "======================================"
     echo -e "${RED}VPSShua提醒您："
     echo -e "本脚本仅限交流学习使用|请勿违反使用者当地法律法规的用途"
@@ -346,17 +214,12 @@ update_vpsshua() {
 
 # 主控制函数
 main() {
-    if [ "$1" = "--run-scheduled" ]; then
-        run_scheduled_job
-        exit $?
-    fi
-
     trap cleanup INT TERM
     check_dependencies
     
     while true; do
         show_menu
-        read -p "请输入选项(1-9): " option
+        read -p "请输入选项(1-6): " option
         
         case $option in
             1) select_region ;;
@@ -365,9 +228,6 @@ main() {
             4) start_download ;;
             5) cleanup ;;  # 退出
             6) update_vpsshua ;;
-            7) configure_daily_schedule ;;
-            8) remove_daily_schedule ;;
-            9) show_daily_schedule_status ;;
             *) echo "无效选项，请重新输入" ;;
         esac
     done
@@ -430,4 +290,4 @@ start_download() {
 }
 
 # 启动脚本
-main "$@"
+main
