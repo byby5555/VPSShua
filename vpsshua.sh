@@ -57,6 +57,46 @@ check_dependencies() {
     fi
 }
 
+
+is_valid_script_file() {
+    local file="$1"
+    [ -s "$file" ] || return 1
+    head -n 1 "$file" | grep -q '^#!/bin/bash' || return 1
+    grep -q 'VPSShua' "$file" || return 1
+    grep -q '^404: Not Found$' "$file" && return 1
+    return 0
+}
+
+fetch_latest_script() {
+    local tmp_file="$1"
+    local urls=(
+        "https://raw.githubusercontent.com/CN-Root/VPSShua/main/vpsshua.sh"
+        "https://raw.githubusercontent.com/CN-Root/VPSShua/main/VPSShua.sh"
+    )
+
+    local api_response latest_tag
+    api_response=$(curl -fsSL "https://api.github.com/repos/CN-Root/VPSShua/releases/latest" 2>/dev/null || true)
+    latest_tag=$(echo "$api_response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+
+    if [ -n "$latest_tag" ]; then
+        urls+=(
+            "https://raw.githubusercontent.com/CN-Root/VPSShua/$latest_tag/vpsshua.sh"
+            "https://raw.githubusercontent.com/CN-Root/VPSShua/$latest_tag/VPSShua.sh"
+            "https://github.com/CN-Root/VPSShua/releases/download/$latest_tag/vpsshua.sh"
+            "https://github.com/CN-Root/VPSShua/releases/download/$latest_tag/VPSShua.sh"
+        )
+    fi
+
+    local url
+    for url in "${urls[@]}"; do
+        if curl -fsSL "$url" -o "$tmp_file" && is_valid_script_file "$tmp_file"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 check_cron_dependency() {
     if ! command -v crontab >/dev/null 2>&1; then
         echo "未找到 crontab 命令，请先安装 cron/cronie 后再配置定时任务。"
@@ -315,16 +355,21 @@ select_region() {
 
 # 更新 VPSShua
 update_vpsshua() {
-    echo "正在从 main 分支更新脚本..."
-    local update_url="https://raw.githubusercontent.com/CN-Root/VPSShua/main/vpsshua.sh"
+    echo "正在更新脚本（自动选择可用源）..."
 
-    if curl -fsSL "$update_url" -o "$SCRIPT_PATH"; then
+    local tmp_file
+    tmp_file=$(mktemp)
+
+    if fetch_latest_script "$tmp_file"; then
+        cat "$tmp_file" > "$SCRIPT_PATH"
+        rm -f "$tmp_file"
         chmod +x "$SCRIPT_PATH"
-        echo "更新成功（来源: main 分支）！请重新运行脚本。"
+        echo "更新成功！请重新运行脚本。"
         exit 0
-    else
-        echo "更新失败，请检查网络或手动更新。"
     fi
+
+    rm -f "$tmp_file"
+    echo "更新失败：未获取到有效脚本文件（已避免写入 404 页面）。"
 }
 
 # 主控制函数
