@@ -35,3 +35,10 @@ line 1: 404:: command not found
 <pre lang="markdown">ls -l /usr/local/bin/vpsshua
 head -n 3 /etc/VPSShua/vpsshua.sh</pre>
 如果第一行不是 `#!/bin/bash`，请重新安装。
+
+
+补充排查：<br/>
+如果菜单里看不到“7. 配置每日定时任务”，通常是执行到了旧脚本。<br/>
+请检查：<br/>
+<pre lang="markdown">readlink -f /usr/local/bin/vpsshua
+grep -n "配置每日定时任务" /etc/VPSShua/vpsshua.sh</pre>

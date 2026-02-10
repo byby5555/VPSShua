@@ -10,6 +10,7 @@ is_valid_script() {
     [ -s "$file" ] || return 1
     head -n 1 "$file" | grep -q '^#!/bin/bash' || return 1
     grep -q 'VPSShua' "$file" || return 1
+    grep -q '配置每日定时任务' "$file" || return 1
     grep -q '^404: Not Found$' "$file" && return 1
     return 0
 }
@@ -51,7 +52,7 @@ fi
 tmp_file=$(mktemp)
 if ! fetch_script "$tmp_file" "${CANDIDATE_URLS[@]}"; then
     rm -f "$tmp_file"
-    echo "❌ 下载失败：未获取到有效脚本文件，避免写入 404 内容。"
+    echo "❌ 下载失败：未获取到包含定时菜单的有效脚本文件，已避免安装旧版/404内容。"
     exit 1
 fi
 

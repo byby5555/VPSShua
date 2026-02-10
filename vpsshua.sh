@@ -63,6 +63,7 @@ is_valid_script_file() {
     [ -s "$file" ] || return 1
     head -n 1 "$file" | grep -q '^#!/bin/bash' || return 1
     grep -q 'VPSShua' "$file" || return 1
+    grep -q '配置每日定时任务' "$file" || return 1
     grep -q '^404: Not Found$' "$file" && return 1
     return 0
 }
