@@ -34,37 +34,57 @@ LIMIT_GB=1
 RESOURCE_TYPE="未选择"
 SELECTED_URLS=()
 
+check_dependencies() {
+    local missing=()
+    local deps=(curl awk bc)
+
+    for cmd in "${deps[@]}"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "缺少依赖: ${missing[*]}"
+        echo "请先安装后再运行脚本。"
+        echo "Debian/Ubuntu: sudo apt update && sudo apt install -y ${missing[*]}"
+        echo "CentOS/RHEL:   sudo yum install -y ${missing[*]}"
+        echo "Alpine:        sudo apk add ${missing[*]}"
+        exit 1
+    fi
+}
+
 # 国内资源（完全保持原始名称）
 DOMESTIC=(
-    "腾讯:https://www.tencent.com/data/index/index_develop_bg3.jpg "
-    "腾讯云:https://qcloudimg.tencent-cloud.cn/raw/a6acc2eb4684190b47a283b636fbe085.png "
-    "腾讯视频:https://puui.qpic.cn/vpic_cover/g3346tki83w/g3346tki83w_hz.jpg "
-    "WeGame:https://wegame.gtimg.com/g.55555-r.c4663/wegame-home/sc02-03.514d7db8.png "
-    "百度网盘:https://nd-static.bdstatic.com/m-static/wp-brand/img/banner.5783471b.png "
-    "阿里:https://gw.alicdn.com/tfs/TB1k07QUoY1gK0jSZFCXXcwqXXa-810-450.png "
-    "微软:https://cdn.microsoftstore.com.cn/media/product_long_description/3781-00000/2_dupn50xr/4h0yzz2_360.jpg "
-    "OPPO:https://dsfs.oppo.com/archives/202505/20250520040508682c3f3436ff8.jpg "
-    "VIVO:https://wwwstatic.vivo.com.cn/vivoportal/files/image/home/20250516/0b3ee0e9c797bc3e6756b94f5ddd838b.png "
-    "拼多多:https://funimg.pddpic.com/c3affbeb-9b31-4546-b2df-95b62de81639.png.slim.png "
-    "斗鱼:https://shark2.douyucdn.cn/front-publish/douyu-web-master/_next/static/media/8.ce6e862f.jpg "
-    "字节跳动:https://lf1-cdn-tos.bytescm.com/obj/static/ies/bytedance_official/_next/static/images/8-4@2x-f85835b5e482bccf94c824067caac899.png "
+    "腾讯:https://www.tencent.com/data/index/index_develop_bg3.jpg"
+    "腾讯云:https://qcloudimg.tencent-cloud.cn/raw/a6acc2eb4684190b47a283b636fbe085.png"
+    "腾讯视频:https://puui.qpic.cn/vpic_cover/g3346tki83w/g3346tki83w_hz.jpg"
+    "WeGame:https://wegame.gtimg.com/g.55555-r.c4663/wegame-home/sc02-03.514d7db8.png"
+    "百度网盘:https://nd-static.bdstatic.com/m-static/wp-brand/img/banner.5783471b.png"
+    "阿里:https://gw.alicdn.com/tfs/TB1k07QUoY1gK0jSZFCXXcwqXXa-810-450.png"
+    "微软:https://cdn.microsoftstore.com.cn/media/product_long_description/3781-00000/2_dupn50xr/4h0yzz2_360.jpg"
+    "OPPO:https://dsfs.oppo.com/archives/202505/20250520040508682c3f3436ff8.jpg"
+    "VIVO:https://wwwstatic.vivo.com.cn/vivoportal/files/image/home/20250516/0b3ee0e9c797bc3e6756b94f5ddd838b.png"
+    "拼多多:https://funimg.pddpic.com/c3affbeb-9b31-4546-b2df-95b62de81639.png.slim.png"
+    "斗鱼:https://shark2.douyucdn.cn/front-publish/douyu-web-master/_next/static/media/8.ce6e862f.jpg"
+    "字节跳动:https://lf1-cdn-tos.bytescm.com/obj/static/ies/bytedance_official/_next/static/images/8-4@2x-f85835b5e482bccf94c824067caac899.png"
 )
 
 # 海外资源（完全保持原始名称）
 OVERSEAS=(
-    "Cloudflare:https://cf-assets.www.cloudflare.com/dzlvafdwdttg/3NFuZG6yz35QXSBt4ToS9y/920197fd1229641b4d826d9f5d0aa169/globe.webp "
-    "GitHub:https://docs.github.com/assets/images/search/copilot-action.png "
-    "Vultr:https://www.vultr.com/_images/company/sla-banner-bg.png "
-    "Linode:https://www.akamai.com/content/dam/site/en/images/video-thumbnail/2024/learn-akamai-live-api-security.png "
-    "BBS中文:https://ichef.bbci.co.uk/ace/ws/800/cpsprodpb/61b3/live/bdc7c940-317f-11f0-96c3-cf669419a2b0.jpg.webp "
-    "腾讯云:https://staticintl.cloudcachetci.com/cms/backend-cms/VyhG740_iClick%E5%AE%A2%E6%88%B7%E6%A1%88%E4%BE%8B%E8%A7%86%E9%A2%91%E5%B0%81%E9%9D%A2.png "
-    "腾讯视频:https://vfiles.gtimg.cn/vupload/20211124/6d0d431637725495400.png "
-    "微软:https://cdn.microsoftstore.com.cn/media/product_long_description/3781-00000/2_dupn50xr/4h0yzz2_360.jpg "
-    "OPPO:https://www.oppo.com/content/dam/oppo/common/mkt/v2-2/a5-series-en/v3/topbanner/5120-1280.jpg "
-    "VIVO:https://asia-exstatic-vivofs.vivo.com/PSee2l50xoirPK7y/1741005511420/a6938ac9d8aaa342065dc5c9ef1679df.jpg "
-    "拼多多:https://funimg.pddpic.com/c3affbeb-9b31-4546-b2df-95b62de81639.png.slim.png "
-    "斗鱼:https://shark2.douyucdn.cn/front-publish/douyu-web-master/_next/static/media/8.ce6e862f.jpg "
-    "字节跳动:https://lf1-cdn-tos.bytescm.com/obj/static/ies/bytedance_official/_next/static/images/8-4@2x-f85835b5e482bccf94c824067caac899.png "
+    "Cloudflare:https://cf-assets.www.cloudflare.com/dzlvafdwdttg/3NFuZG6yz35QXSBt4ToS9y/920197fd1229641b4d826d9f5d0aa169/globe.webp"
+    "GitHub:https://docs.github.com/assets/images/search/copilot-action.png"
+    "Vultr:https://www.vultr.com/_images/company/sla-banner-bg.png"
+    "Linode:https://www.akamai.com/content/dam/site/en/images/video-thumbnail/2024/learn-akamai-live-api-security.png"
+    "BBS中文:https://ichef.bbci.co.uk/ace/ws/800/cpsprodpb/61b3/live/bdc7c940-317f-11f0-96c3-cf669419a2b0.jpg.webp"
+    "腾讯云:https://staticintl.cloudcachetci.com/cms/backend-cms/VyhG740_iClick%E5%AE%A2%E6%88%B7%E6%A1%88%E4%BE%8B%E8%A7%86%E9%A2%91%E5%B0%81%E9%9D%A2.png"
+    "腾讯视频:https://vfiles.gtimg.cn/vupload/20211124/6d0d431637725495400.png"
+    "微软:https://cdn.microsoftstore.com.cn/media/product_long_description/3781-00000/2_dupn50xr/4h0yzz2_360.jpg"
+    "OPPO:https://www.oppo.com/content/dam/oppo/common/mkt/v2-2/a5-series-en/v3/topbanner/5120-1280.jpg"
+    "VIVO:https://asia-exstatic-vivofs.vivo.com/PSee2l50xoirPK7y/1741005511420/a6938ac9d8aaa342065dc5c9ef1679df.jpg"
+    "拼多多:https://funimg.pddpic.com/c3affbeb-9b31-4546-b2df-95b62de81639.png.slim.png"
+    "斗鱼:https://shark2.douyucdn.cn/front-publish/douyu-web-master/_next/static/media/8.ce6e862f.jpg"
+    "字节跳动:https://lf1-cdn-tos.bytescm.com/obj/static/ies/bytedance_official/_next/static/images/8-4@2x-f85835b5e482bccf94c824067caac899.png"
 )
 
 # 清理函数
@@ -195,6 +215,7 @@ update_vpsshua() {
 # 主控制函数
 main() {
     trap cleanup INT TERM
+    check_dependencies
     
     while true; do
         show_menu
