@@ -1,46 +1,78 @@
 #!/bin/bash
 
-REPO="CN-Root/VPSShua"
+REPO="${VPSSHUA_REPO:-byby5555/VPSShua}"
 INSTALL_DIR="/etc/VPSShua"
 BIN_PATH="/usr/local/bin/vpsshua"
+TARGET_SCRIPT="$INSTALL_DIR/vpsshua.sh"
+echo "📦 使用仓库源: $REPO"
 
-# 1. 获取最新版本信息
-echo "🔍 获取最新版本信息..."
-API_RESPONSE=$(curl -s "https://api.github.com/repos/$REPO/releases/latest")
-LATEST_TAG=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+is_valid_script() {
+    local file="$1"
+    [ -s "$file" ] || return 1
+    head -n 1 "$file" | grep -q '^#!/bin/bash' || return 1
+    grep -q 'VPSShua' "$file" || return 1
+    grep -q '配置每日定时任务' "$file" || return 1
+    grep -q '^404: Not Found$' "$file" && return 1
+    return 0
+}
 
-if [ -z "$LATEST_TAG" ]; then
-    echo "❌ 获取最新版本失败，使用 main 分支版本代替"
-    SCRIPT_URL="https://raw.githubusercontent.com/$REPO/main/vpsshua.sh"
-else
-    echo "✅ 最新版本是 $LATEST_TAG"
-    
-    # 2. 获取发布资产 vpsshua.sh 的下载链接
-    SCRIPT_URL=$(echo "$API_RESPONSE" | grep "browser_download_url" | grep "vpsshua.sh" | cut -d '"' -f 4)
-    
-    if [ -z "$SCRIPT_URL" ]; then
-        echo "⚠️ 在最新版本中未找到 vpsshua.sh 资产，尝试从源码下载"
-        SCRIPT_URL="https://raw.githubusercontent.com/$REPO/$LATEST_TAG/vpsshua.sh"
-    fi
+fetch_script() {
+    local tmp_file="$1"
+    shift
+    local url
+
+    for url in "$@"; do
+        echo "🔎 尝试下载: $url"
+        if curl -fsSL "$url" -o "$tmp_file" && is_valid_script "$tmp_file"; then
+            echo "✅ 下载成功: $url"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# 默认优先 main 分支，同时兼容大小写文件名
+CANDIDATE_URLS=(
+    "https://raw.githubusercontent.com/$REPO/main/vpsshua.sh"
+    "https://raw.githubusercontent.com/$REPO/main/VPSShua.sh"
+)
+
+echo "🔍 获取 latest release 信息（用于兜底）..."
+API_RESPONSE=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null || true)
+LATEST_TAG=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
+if [ -n "$LATEST_TAG" ]; then
+    CANDIDATE_URLS+=(
+        "https://raw.githubusercontent.com/$REPO/$LATEST_TAG/vpsshua.sh"
+        "https://raw.githubusercontent.com/$REPO/$LATEST_TAG/VPSShua.sh"
+        "https://github.com/$REPO/releases/download/$LATEST_TAG/vpsshua.sh"
+        "https://github.com/$REPO/releases/download/$LATEST_TAG/VPSShua.sh"
+    )
+fi
+
+tmp_file=$(mktemp)
+if ! fetch_script "$tmp_file" "${CANDIDATE_URLS[@]}"; then
+    rm -f "$tmp_file"
+    echo "❌ 下载失败：未获取到包含定时菜单的有效脚本文件，已避免安装旧版/404内容。"
+    exit 1
 fi
 
 echo "📁 创建安装目录: $INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 
-echo "⬇️ 正在下载主程序到 $INSTALL_DIR/vpsshua.sh ..."
-sudo curl -L "$SCRIPT_URL" -o "$INSTALL_DIR/vpsshua.sh"
-
-echo "🔒 设置执行权限..."
-sudo chmod +x "$INSTALL_DIR/vpsshua.sh"
+sudo mv "$tmp_file" "$TARGET_SCRIPT"
+sudo chmod +x "$TARGET_SCRIPT"
 
 echo "🔗 添加软链接到 $BIN_PATH"
-sudo ln -sf "$INSTALL_DIR/vpsshua.sh" "$BIN_PATH"
+sudo ln -sf "$TARGET_SCRIPT" "$BIN_PATH"
 
-# 检查是否成功
 if command -v vpsshua >/dev/null 2>&1; then
-    echo -e "\n✅ 安装成功！你现在可以输入以下命令启动脚本：\n"
+    echo -e "
+✅ 安装成功！你现在可以输入以下命令启动脚本：
+"
     echo "  vpsshua"
-    echo -e "\n📂 安装路径：${INSTALL_DIR}"
+    echo -e "
+📂 安装路径：${INSTALL_DIR}"
 else
     echo "⚠️ 安装完成，但未检测到 vpsshua 命令，请检查软链接或重新安装"
 fi
