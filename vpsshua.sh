@@ -13,7 +13,11 @@
 #声明版本号
 VERSION="v0.2"
 SCRIPT_PATH=$(readlink -f "$0")
-SCHEDULE_CONF="/etc/VPSShua/schedule.conf"
+INSTALL_DIR="/etc/VPSShua"
+BIN_PATH="/usr/local/bin/vpsshua"
+TARGET_SCRIPT="$INSTALL_DIR/vpsshua.sh"
+SCHEDULE_CONF="${VPSSHUA_SCHEDULE_CONF:-/etc/VPSShua/schedule.conf}"
+CRON_LOG="${VPSSHUA_CRON_LOG:-/tmp/vpsshua-cron.log}"
 CRON_TAG="# VPSSHUA_DAILY_JOB"
 UPDATE_REPO="${VPSSHUA_REPO:-byby5555/VPSShua}"
 
@@ -38,9 +42,9 @@ LIMIT_GB=1
 RESOURCE_TYPE="未选择"
 SELECTED_URLS=()
 
-check_dependencies() {
+check_cmd_dependencies() {
     local missing=()
-    local deps=(curl awk bc)
+    local deps=("$@")
 
     for cmd in "${deps[@]}"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -54,8 +58,21 @@ check_dependencies() {
         echo "Debian/Ubuntu: sudo apt update && sudo apt install -y ${missing[*]}"
         echo "CentOS/RHEL:   sudo yum install -y ${missing[*]}"
         echo "Alpine:        sudo apk add ${missing[*]}"
-        exit 1
+        return 1
     fi
+    return 0
+}
+
+check_base_dependencies() {
+    check_cmd_dependencies curl awk
+}
+
+check_download_dependencies() {
+    check_cmd_dependencies curl awk bc
+}
+
+pause_return() {
+    read -r -p "按回车返回主菜单..." _
 }
 
 
@@ -147,7 +164,7 @@ install_daily_cron() {
     local cron_line
     local tmp_cron
 
-    cron_line="$minute $hour * * * $SCRIPT_PATH --run-scheduled >/tmp/vpsshua-cron.log 2>&1 $CRON_TAG"
+    cron_line="$minute $hour * * * /bin/bash $SCRIPT_PATH --run-scheduled >$CRON_LOG 2>&1 $CRON_TAG"
 
     tmp_cron=$(mktemp)
     crontab -l 2>/dev/null | sed "/$CRON_TAG/d" > "$tmp_cron"
@@ -187,7 +204,7 @@ configure_daily_schedule() {
 
     echo "每日定时任务已设置：$run_time"
     echo "定时配置文件：$SCHEDULE_CONF"
-    echo "日志输出：/tmp/vpsshua-cron.log"
+    echo "日志输出：$CRON_LOG"
 }
 
 remove_daily_schedule() {
@@ -203,22 +220,69 @@ remove_daily_schedule() {
     echo "已删除每日定时任务和配置文件。"
 }
 
-show_daily_schedule_status() {
-    check_cron_dependency || return 1
+uninstall_vpsshua() {
+    echo "⚠️ 将卸载 VPSShua："
+    echo "  - 删除快捷方式: $BIN_PATH"
+    echo "  - 删除脚本文件: $TARGET_SCRIPT"
+    echo "  - 删除定时配置: $SCHEDULE_CONF"
+    echo "  - 删除定时日志: $CRON_LOG"
+    read -r -p "确认卸载请输入 YES: " confirm
 
-    echo "当前 crontab 中的 VPSShua 定时任务："
-    crontab -l 2>/dev/null | grep "$CRON_TAG" || echo "(未配置)"
+    if [ "$confirm" != "YES" ]; then
+        echo "已取消卸载。"
+        return 0
+    fi
+
+    if command -v crontab >/dev/null 2>&1; then
+        local tmp_cron
+        tmp_cron=$(mktemp)
+        crontab -l 2>/dev/null | sed "/$CRON_TAG/d" > "$tmp_cron"
+        crontab "$tmp_cron" 2>/dev/null || true
+        rm -f "$tmp_cron"
+    fi
+
+    rm -f "$SCHEDULE_CONF" "$CRON_LOG"
+    rm -f "$BIN_PATH"
+    rm -f "$TARGET_SCRIPT"
+
+    echo "✅ VPSShua 已卸载完成。"
+    echo "如你正在运行仓库内脚本文件，可手动删除仓库目录。"
+    exit 0
+}
+
+show_daily_schedule_status() {
+    echo "当前定时任务状态："
+
+    if command -v crontab >/dev/null 2>&1; then
+        local cron_matches
+        cron_matches=$(crontab -l 2>/dev/null | grep "$CRON_TAG" || true)
+        if [ -n "$cron_matches" ]; then
+            echo "crontab 任务："
+            echo "$cron_matches"
+        else
+            echo "crontab 任务：(未配置)"
+        fi
+    else
+        echo "crontab 任务：系统未安装 crontab 命令"
+    fi
 
     if [ -f "$SCHEDULE_CONF" ]; then
         echo "配置文件：$SCHEDULE_CONF"
         sed 's/^/  /' "$SCHEDULE_CONF"
     else
-        echo "配置文件：未找到"
+        echo "配置文件：未找到 ($SCHEDULE_CONF)"
+    fi
+
+    if [ -f "$CRON_LOG" ]; then
+        echo "最近日志（尾部 5 行）：$CRON_LOG"
+        tail -n 5 "$CRON_LOG" | sed 's/^/  /'
+    else
+        echo "日志文件：未找到 ($CRON_LOG)"
     fi
 }
 
 run_scheduled_job() {
-    check_dependencies
+    check_download_dependencies || return 1
     load_schedule_config || return 1
 
     echo "[$(date '+%F %T')] 启动定时任务，资源类型: $RESOURCE_TYPE，限制: ${LIMIT_GB}GB，线程: $THREADS"
@@ -316,6 +380,7 @@ show_menu() {
     echo "7. 配置每日定时任务"
     echo "8. 删除每日定时任务"
     echo "9. 查看定时任务状态"
+    echo "10. 卸载 VPSShua"
     echo "======================================"
     echo -e "${RED}VPSShua提醒您："
     echo -e "本脚本仅限交流学习使用|请勿违反使用者当地法律法规的用途"
@@ -382,29 +447,31 @@ main() {
     fi
 
     trap cleanup INT TERM
-    check_dependencies
+    check_base_dependencies || exit 1
     
     while true; do
         show_menu
-        read -p "请输入选项(1-9): " option
+        read -p "请输入选项(1-10): " option
         
         case $option in
-            1) select_region ;;
-            2) read -p "输入要消耗的流量(GB): " LIMIT_GB ;;
-            3) read -p "输入线程数量: " THREADS ;;
-            4) start_download ;;
+            1) select_region; pause_return ;;
+            2) read -p "输入要消耗的流量(GB): " LIMIT_GB; pause_return ;;
+            3) read -p "输入线程数量: " THREADS; pause_return ;;
+            4) start_download; pause_return ;;
             5) cleanup ;;  # 退出
-            6) update_vpsshua ;;
-            7) configure_daily_schedule ;;
-            8) remove_daily_schedule ;;
-            9) show_daily_schedule_status ;;
-            *) echo "无效选项，请重新输入" ;;
+            6) update_vpsshua; pause_return ;;
+            7) configure_daily_schedule; pause_return ;;
+            8) remove_daily_schedule; pause_return ;;
+            9) show_daily_schedule_status; pause_return ;;
+            10) uninstall_vpsshua ;;
+            *) echo "无效选项，请重新输入"; pause_return ;;
         esac
     done
 }
 
 # 开始下载
 start_download() {
+    check_download_dependencies || return 1
     [ ${#SELECTED_URLS[@]} -eq 0 ] && { echo "请先选择资源！"; return; }
     
     rm -f "$STAT_FILE" "$STOP_FILE"
