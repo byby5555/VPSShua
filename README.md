@@ -8,6 +8,9 @@ VPSShua 是一款用于刷 VPS 下行流量的工具，具备高度稳定性、�
 一键安装：
 <pre lang="markdown">bash <(curl -Ls https://raw.githubusercontent.com/CN-Root/VPSShua/main/install.sh)</pre>
 报错信息查询：<a href="https://github.com/CN-Root/VPSShua/blob/main/Info/error.md" target="_blank">点我前往</a>
+
+Fork 仓库安装（例如 byby5555）：
+<pre lang="markdown">VPSSHUA_REPO=byby5555/VPSShua bash <(curl -Ls https://raw.githubusercontent.com/byby5555/VPSShua/main/install.sh)</pre>
 <hr/>
 ✨ 核心功能：
 <ui>
@@ -15,7 +18,10 @@ VPSShua 是一款用于刷 VPS 下行流量的工具，具备高度稳定性、�
 <li>✅ 自定义流量限制：按 GB 单位设定刷流上限，自动终止任务。</li>
 <li>✅ 可调线程数：可设定并发线程数，灵活控制压力大小。</li>
 <li>✅ 实时统计显示：动态展示已使用流量、请求次数与运行时间。</li>
-<li>✅ 完善的设置菜单：内置安装、更新、开机自启设置功能。</li>
+<li>✅ 完善的设置菜单：内置资源选择、更新、运行控制功能。</li>
+<li>✅ 每日定时任务：支持在交互菜单配置时间后自动每日执行下载任务。</li>
+<li>✅ 任务管理选项：支持在交互菜单查看运行中任务并手动停止。</li>
+<li>✅ 卸载交互选项：可在菜单中一键清理脚本、快捷方式和定时配置。</li>
 <li>✅ 断点中止/清理机制：支持 Ctrl+C 优雅终止，自动清理临时文件。</li>
 </ui>
 <hr/>
