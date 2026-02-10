@@ -15,6 +15,7 @@ VERSION="v0.2"
 SCRIPT_PATH=$(readlink -f "$0")
 SCHEDULE_CONF="/etc/VPSShua/schedule.conf"
 CRON_TAG="# VPSSHUA_DAILY_JOB"
+UPDATE_REPO="${VPSSHUA_REPO:-byby5555/VPSShua}"
 
 # 定义颜色代码
 RED="\033[31m"
@@ -71,20 +72,20 @@ is_valid_script_file() {
 fetch_latest_script() {
     local tmp_file="$1"
     local urls=(
-        "https://raw.githubusercontent.com/CN-Root/VPSShua/main/vpsshua.sh"
-        "https://raw.githubusercontent.com/CN-Root/VPSShua/main/VPSShua.sh"
+        "https://raw.githubusercontent.com/$UPDATE_REPO/main/vpsshua.sh"
+        "https://raw.githubusercontent.com/$UPDATE_REPO/main/VPSShua.sh"
     )
 
     local api_response latest_tag
-    api_response=$(curl -fsSL "https://api.github.com/repos/CN-Root/VPSShua/releases/latest" 2>/dev/null || true)
+    api_response=$(curl -fsSL "https://api.github.com/repos/$UPDATE_REPO/releases/latest" 2>/dev/null || true)
     latest_tag=$(echo "$api_response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
 
     if [ -n "$latest_tag" ]; then
         urls+=(
-            "https://raw.githubusercontent.com/CN-Root/VPSShua/$latest_tag/vpsshua.sh"
-            "https://raw.githubusercontent.com/CN-Root/VPSShua/$latest_tag/VPSShua.sh"
-            "https://github.com/CN-Root/VPSShua/releases/download/$latest_tag/vpsshua.sh"
-            "https://github.com/CN-Root/VPSShua/releases/download/$latest_tag/VPSShua.sh"
+            "https://raw.githubusercontent.com/$UPDATE_REPO/$latest_tag/vpsshua.sh"
+            "https://raw.githubusercontent.com/$UPDATE_REPO/$latest_tag/VPSShua.sh"
+            "https://github.com/$UPDATE_REPO/releases/download/$latest_tag/vpsshua.sh"
+            "https://github.com/$UPDATE_REPO/releases/download/$latest_tag/VPSShua.sh"
         )
     fi
 
@@ -356,7 +357,7 @@ select_region() {
 
 # 更新 VPSShua
 update_vpsshua() {
-    echo "正在更新脚本（自动选择可用源）..."
+    echo "正在更新脚本（自动选择可用源）... 仓库: $UPDATE_REPO"
 
     local tmp_file
     tmp_file=$(mktemp)

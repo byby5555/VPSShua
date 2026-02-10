@@ -1,9 +1,10 @@
 #!/bin/bash
 
-REPO="CN-Root/VPSShua"
+REPO="${VPSSHUA_REPO:-byby5555/VPSShua}"
 INSTALL_DIR="/etc/VPSShua"
 BIN_PATH="/usr/local/bin/vpsshua"
 TARGET_SCRIPT="$INSTALL_DIR/vpsshua.sh"
+echo "📦 使用仓库源: $REPO"
 
 is_valid_script() {
     local file="$1"

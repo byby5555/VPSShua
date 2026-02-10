@@ -42,3 +42,8 @@ head -n 3 /etc/VPSShua/vpsshua.sh</pre>
 请检查：<br/>
 <pre lang="markdown">readlink -f /usr/local/bin/vpsshua
 grep -n "配置每日定时任务" /etc/VPSShua/vpsshua.sh</pre>
+
+
+补充说明：<br/>
+如果你是 fork 仓库（如 `byby5555/VPSShua`），安装时可指定仓库变量：<br/>
+<pre lang="markdown">VPSSHUA_REPO=byby5555/VPSShua bash <(curl -Ls https://raw.githubusercontent.com/byby5555/VPSShua/main/install.sh)</pre>
