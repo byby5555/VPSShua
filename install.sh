@@ -4,25 +4,9 @@ REPO="CN-Root/VPSShua"
 INSTALL_DIR="/etc/VPSShua"
 BIN_PATH="/usr/local/bin/vpsshua"
 
-# 1. 获取最新版本信息
-echo "🔍 获取最新版本信息..."
-API_RESPONSE=$(curl -s "https://api.github.com/repos/$REPO/releases/latest")
-LATEST_TAG=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
-if [ -z "$LATEST_TAG" ]; then
-    echo "❌ 获取最新版本失败，使用 main 分支版本代替"
-    SCRIPT_URL="https://raw.githubusercontent.com/$REPO/main/vpsshua.sh"
-else
-    echo "✅ 最新版本是 $LATEST_TAG"
-    
-    # 2. 获取发布资产 vpsshua.sh 的下载链接
-    SCRIPT_URL=$(echo "$API_RESPONSE" | grep "browser_download_url" | grep "vpsshua.sh" | cut -d '"' -f 4)
-    
-    if [ -z "$SCRIPT_URL" ]; then
-        echo "⚠️ 在最新版本中未找到 vpsshua.sh 资产，尝试从源码下载"
-        SCRIPT_URL="https://raw.githubusercontent.com/$REPO/$LATEST_TAG/vpsshua.sh"
-    fi
-fi
+# 默认安装 main 分支最新版，避免 release 资产滞后导致功能缺失
+SCRIPT_URL="https://raw.githubusercontent.com/$REPO/main/vpsshua.sh"
+echo "📌 默认安装 main 分支最新版: $SCRIPT_URL"
 
 echo "📁 创建安装目录: $INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
