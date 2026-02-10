@@ -18,6 +18,7 @@ BIN_PATH="/usr/local/bin/vpsshua"
 TARGET_SCRIPT="$INSTALL_DIR/vpsshua.sh"
 SCHEDULE_CONF="${VPSSHUA_SCHEDULE_CONF:-/etc/VPSShua/schedule.conf}"
 CRON_LOG="${VPSSHUA_CRON_LOG:-/tmp/vpsshua-cron.log}"
+SCHEDULE_PID_FILE="${VPSSHUA_SCHEDULE_PID_FILE:-/tmp/vpsshua-scheduled.pid}"
 CRON_TAG="# VPSSHUA_DAILY_JOB"
 UPDATE_REPO="${VPSSHUA_REPO:-byby5555/VPSShua}"
 
@@ -281,9 +282,89 @@ show_daily_schedule_status() {
     fi
 }
 
+
+show_running_tasks() {
+    echo "当前运行中的任务："
+
+    local found=0
+
+    if [ -f "$SCHEDULE_PID_FILE" ]; then
+        local pid
+        pid=$(cat "$SCHEDULE_PID_FILE" 2>/dev/null)
+        if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+            found=1
+            echo "定时任务主进程 PID: $pid"
+            ps -p "$pid" -o pid,ppid,etimes,cmd
+        else
+            echo "PID 文件存在但进程已不在，正在清理: $SCHEDULE_PID_FILE"
+            rm -f "$SCHEDULE_PID_FILE"
+        fi
+    fi
+
+    local dynamic_pids
+    dynamic_pids=$(pgrep -f "/bin/bash $SCRIPT_PATH --run-scheduled" || true)
+    if [ -n "$dynamic_pids" ]; then
+        found=1
+        echo "--run-scheduled 进程："
+        ps -o pid,ppid,etimes,cmd -p $(echo "$dynamic_pids" | tr '
+' ' ')
+    fi
+
+    if [ "$found" -eq 0 ]; then
+        echo "(当前没有检测到运行中的定时任务进程)"
+    fi
+}
+
+stop_running_tasks() {
+    local stopped=0
+
+    if [ -f "$SCHEDULE_PID_FILE" ]; then
+        local pid
+        pid=$(cat "$SCHEDULE_PID_FILE" 2>/dev/null)
+        if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+            echo "正在停止定时任务 PID: $pid"
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 1
+            if kill -0 "$pid" 2>/dev/null; then
+                echo "进程仍在运行，发送强制停止信号..."
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+            stopped=1
+        fi
+        rm -f "$SCHEDULE_PID_FILE"
+    fi
+
+    local dynamic_pids
+    dynamic_pids=$(pgrep -f "/bin/bash $SCRIPT_PATH --run-scheduled" || true)
+    if [ -n "$dynamic_pids" ]; then
+        echo "正在停止 --run-scheduled 进程: $(echo "$dynamic_pids" | tr '
+' ' ')"
+        while read -r pid; do
+            [ -z "$pid" ] && continue
+            kill -TERM "$pid" 2>/dev/null || true
+        done <<< "$dynamic_pids"
+        stopped=1
+    fi
+
+    touch "$STOP_FILE"
+
+    if [ "$stopped" -eq 1 ]; then
+        echo "✅ 任务停止指令已发送。"
+    else
+        echo "未发现正在运行的定时任务。"
+    fi
+}
+
+cleanup_scheduled_runtime() {
+    rm -f "$SCHEDULE_PID_FILE"
+}
+
 run_scheduled_job() {
     check_download_dependencies || return 1
     load_schedule_config || return 1
+
+    echo $$ > "$SCHEDULE_PID_FILE"
+    trap cleanup_scheduled_runtime EXIT INT TERM
 
     echo "[$(date '+%F %T')] 启动定时任务，资源类型: $RESOURCE_TYPE，限制: ${LIMIT_GB}GB，线程: $THREADS"
     start_download
@@ -380,7 +461,9 @@ show_menu() {
     echo "7. 配置每日定时任务"
     echo "8. 删除每日定时任务"
     echo "9. 查看定时任务状态"
-    echo "10. 卸载 VPSShua"
+    echo "10. 查看运行中任务"
+    echo "11. 停止运行中任务"
+    echo "12. 卸载 VPSShua"
     echo "======================================"
     echo -e "${RED}VPSShua提醒您："
     echo -e "本脚本仅限交流学习使用|请勿违反使用者当地法律法规的用途"
@@ -451,7 +534,7 @@ main() {
     
     while true; do
         show_menu
-        read -p "请输入选项(1-10): " option
+        read -p "请输入选项(1-12): " option
         
         case $option in
             1) select_region; pause_return ;;
@@ -463,7 +546,9 @@ main() {
             7) configure_daily_schedule; pause_return ;;
             8) remove_daily_schedule; pause_return ;;
             9) show_daily_schedule_status; pause_return ;;
-            10) uninstall_vpsshua ;;
+            10) show_running_tasks; pause_return ;;
+            11) stop_running_tasks; pause_return ;;
+            12) uninstall_vpsshua ;;
             *) echo "无效选项，请重新输入"; pause_return ;;
         esac
     done
