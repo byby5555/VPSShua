@@ -6,7 +6,7 @@ VPSShua 是一款用于刷 VPS 下行流量的工具，具备高度稳定性、�
 🌐 Language: [<a href="https://github.com/CN-Root/VPSShua/blob/main/language/README.en.md">English</a>] | [<a href="https://github.com/CN-Root/VPSShua/blob/main/language/README.vi.md">Tiếng Việt</a>] | [<a href="https://github.com/CN-Root/VPSShua/blob/main/language/README.ja.md">日本語</a>]
 <br/><br/>
 一键安装：
-<pre lang="markdown">bash <(curl -Ls https://raw.githubusercontent.com/CN-Root/VPSShua/main/install.sh)</pre>
+<pre lang="markdown">bash <(curl -Ls https://raw.githubusercontent.com/byby5555/vpsshua/main/install.sh)</pre>
 报错信息查询：<a href="https://github.com/CN-Root/VPSShua/blob/main/Info/error.md" target="_blank">点我前往</a>
 <hr/>
 ✨ 核心功能：
